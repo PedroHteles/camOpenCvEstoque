@@ -20,6 +20,7 @@ import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
+import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 
@@ -152,6 +153,8 @@ public class CameraActivity extends Activity implements CameraBridgeViewBase.CvC
             Log.d(TAG, points[0].toString());
             Log.d(TAG, String.valueOf(points[1].getX()));
             Log.d(TAG, points[2].toString());
+
+            Imgproc.putText(mRgba, result.getText(),new Point(points[1].getX(),points[1].getY()-50), Core.FONT_HERSHEY_COMPLEX, 1.0, new Scalar(0, 255, 0), 3, Imgproc.LINE_AA, false);
             Imgproc.rectangle(mRgba,new Point(points[0].getX(),points[0].getY()),new Point(points[2].getX(),points[2].getY()), new Scalar(0,0,0,0),15);
 
 
@@ -163,7 +166,6 @@ public class CameraActivity extends Activity implements CameraBridgeViewBase.CvC
         } catch (ChecksumException e) {
             e.printStackTrace();
         }
-
 
         return mRgba;
 
