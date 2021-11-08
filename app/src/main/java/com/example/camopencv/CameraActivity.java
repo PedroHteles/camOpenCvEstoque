@@ -26,6 +26,7 @@ import org.opencv.core.Mat;
 
 import com.google.zxing.BinaryBitmap;
 import com.google.zxing.ChecksumException;
+import com.google.zxing.DecodeHintType;
 import com.google.zxing.FormatException;
 import com.google.zxing.LuminanceSource;
 import com.google.zxing.NotFoundException;
@@ -41,7 +42,12 @@ import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.objdetect.QRCodeDetector;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 
 public class CameraActivity extends Activity implements CameraBridgeViewBase.CvCameraViewListener2{
     private static final String TAG="MainActivity";
@@ -144,26 +150,71 @@ public class CameraActivity extends Activity implements CameraBridgeViewBase.CvC
         LuminanceSource source = new RGBLuminanceSource(bMap.getWidth(), bMap.getHeight(),intArray);
         BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(source));
 
-        Reader reader = new QRCodeMultiReader();
+        List<Qr> listaProduto = new ArrayList<>();
+        List<Qr> listaEndereco = new ArrayList<>();
+
 
         try {
+            Map<DecodeHintType, String> hints = new HashMap<>();
+            hints.put(DecodeHintType.CHARACTER_SET, "utf-8");
+            Result[]  result = new QRCodeMultiReader().decodeMultiple(bitmap, hints);
+            for(Result kp : result)
+            {
+                ResultPoint[] points = kp.getResultPoints();
+                Imgproc.putText(mRgba, kp.getText(),new Point(points[1].getX(),points[1].getY()-50), Core.FONT_HERSHEY_COMPLEX, 1.0, new Scalar(0, 255, 0), 3, Imgproc.LINE_AA, false);
+                Imgproc.rectangle(mRgba,new Point(points[0].getX(),points[0].getY()),new Point(points[2].getX(),points[2].getY()), new Scalar(0,0,0,0),15);
 
-            Result result = reader.decode(bitmap);
-            ResultPoint[] points = result.getResultPoints();
-            Log.d(TAG, points[0].toString());
-            Log.d(TAG, String.valueOf(points[1].getX()));
-            Log.d(TAG, points[2].toString());
 
-            Imgproc.putText(mRgba, result.getText(),new Point(points[1].getX(),points[1].getY()-50), Core.FONT_HERSHEY_COMPLEX, 1.0, new Scalar(0, 255, 0), 3, Imgproc.LINE_AA, false);
-            Imgproc.rectangle(mRgba,new Point(points[0].getX(),points[0].getY()),new Point(points[2].getX(),points[2].getY()), new Scalar(0,0,0,0),15);
+                if(kp.getText().contains("QR01")){
+                    Float x = points[0].getX();
+                    Float y = points[0].getY();
+                    listaProduto.add(new Qr(x,y,kp.getText()));
+
+                } else if (kp.getText().contains("QR02")){
+                    Float x = points[0].getX();
+                    Float y = points[0].getY();
+                    listaEndereco.add(new Qr(x,y,kp.getText()));
+                }
+
+                for (int i = 0 ;  i < listaProduto.size(); i++) {
+                    Double xp = listaProduto.get(i).getX();
+                    Double yp = listaProduto.get(i).getY();
+
+                    String produtoTemp = listaProduto.get(i).getResultado();
+                    Double distanciaTemp = null;
+                    String enderecoTemp = null;
+                    Integer indexTemp = null;
+
+                    for(int j = 0 ;  j < listaEndereco.size(); j++){
+                        if (j == 0){
+                            Double xe = listaEndereco.get(j).getX();
+                            Double ye = listaEndereco.get(j).getY();
+                            enderecoTemp = listaEndereco.get(j).getResultado();
+                            distanciaTemp = Math.pow(((xe - xp)*(xe - xp) + (ye - yp )*(ye - yp )),0.5);
+                            indexTemp = j;
+                            Log.d(TAG, distanciaTemp.toString());
+
+                        }else{
+                            Double xe = listaEndereco.get(j).getX();
+                            Double ye = listaEndereco.get(j).getY();
+                            double pow = Math.pow(((xe - xp) * (xe - xp) + (ye - yp) * (ye - yp)), 0.5);
+                            if(pow < distanciaTemp){
+                                enderecoTemp = listaEndereco.get(j).getResultado();
+                                distanciaTemp = pow;
+                                indexTemp = j;
+                            }
+                        }
+                    }
+                    System.out.println(produtoTemp);
+                    System.out.println(enderecoTemp);
+                    System.out.println(distanciaTemp);
+                    System.out.println(indexTemp);
+                }
+            }
 
 
         }
         catch (NotFoundException e) {
-            e.printStackTrace();
-        } catch (FormatException e) {
-            e.printStackTrace();
-        } catch (ChecksumException e) {
             e.printStackTrace();
         }
 
