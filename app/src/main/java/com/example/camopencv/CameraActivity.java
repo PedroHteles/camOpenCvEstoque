@@ -15,6 +15,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Toast;
 
+import org.json.JSONObject;
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.LoaderCallbackInterface;
@@ -51,10 +52,10 @@ import java.util.stream.Stream;
 
 public class CameraActivity extends Activity implements CameraBridgeViewBase.CvCameraViewListener2{
     private static final String TAG="MainActivity";
-
     private Mat mRgba;
     private Mat mGray;
     private CameraBridgeViewBase mOpenCvCameraView;
+    private Integer flag = 0;
     private BaseLoaderCallback mLoaderCallback =new BaseLoaderCallback(this) {
         @Override
         public void onManagerConnected(int status) {
@@ -67,7 +68,6 @@ public class CameraActivity extends Activity implements CameraBridgeViewBase.CvC
                 default:
                 {
                     super.onManagerConnected(status);
-
                 }
                 break;
             }
@@ -77,7 +77,6 @@ public class CameraActivity extends Activity implements CameraBridgeViewBase.CvC
     public CameraActivity(){
         Log.i(TAG,"Instantiated new "+this.getClass());
     }
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -90,13 +89,10 @@ public class CameraActivity extends Activity implements CameraBridgeViewBase.CvC
                 == PackageManager.PERMISSION_DENIED){
             ActivityCompat.requestPermissions(CameraActivity.this, new String[] {Manifest.permission.CAMERA}, MY_PERMISSIONS_REQUEST_CAMERA);
         }
-
         setContentView(R.layout.activity_camera);
-
         mOpenCvCameraView=(CameraBridgeViewBase) findViewById(R.id.frame_Surface);
         mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
         mOpenCvCameraView.setCvCameraViewListener(this);
-
     }
 
     @Override
@@ -127,99 +123,126 @@ public class CameraActivity extends Activity implements CameraBridgeViewBase.CvC
         if(mOpenCvCameraView !=null){
             mOpenCvCameraView.disableView();
         }
-
     }
 
     public void onCameraViewStarted(int width ,int height){
         mRgba=new Mat(height,width, CvType.CV_8UC4);
         mGray =new Mat(height,width,CvType.CV_8UC1);
     }
+
     public void onCameraViewStopped(){
         mRgba.release();
     }
+
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame){
         mRgba=inputFrame.rgba();
         mGray=inputFrame.gray();
 
+        if(flag == 0){
+            Bitmap bMap = Bitmap.createBitmap(mRgba.width(), mRgba.height(), Bitmap.Config.ARGB_8888);
+            Utils.matToBitmap(mRgba,bMap);
+            int[] intArray = new int[bMap.getWidth()*bMap.getHeight()];
+            bMap.getPixels(intArray, 0, bMap.getWidth(), 0, 0, bMap.getWidth(), bMap.getHeight());
+            LuminanceSource source = new RGBLuminanceSource(bMap.getWidth(), bMap.getHeight(),intArray);
+            BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(source));
+            List<Qr> listaProduto = new ArrayList<>();
+            List<Qr> listaEndereco = new ArrayList<>();
+            List<JSONObject> listaFinal = new ArrayList<>();
 
-
-        Bitmap bMap = Bitmap.createBitmap(mRgba.width(), mRgba.height(), Bitmap.Config.ARGB_8888);
-        Utils.matToBitmap(mRgba,bMap);
-        int[] intArray = new int[bMap.getWidth()*bMap.getHeight()];
-        bMap.getPixels(intArray, 0, bMap.getWidth(), 0, 0, bMap.getWidth(), bMap.getHeight());
-        LuminanceSource source = new RGBLuminanceSource(bMap.getWidth(), bMap.getHeight(),intArray);
-        BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(source));
-
-        List<Qr> listaProduto = new ArrayList<>();
-        List<Qr> listaEndereco = new ArrayList<>();
-
-
-        try {
-            Map<DecodeHintType, String> hints = new HashMap<>();
-            hints.put(DecodeHintType.CHARACTER_SET, "utf-8");
-            Result[]  result = new QRCodeMultiReader().decodeMultiple(bitmap, hints);
-            for(Result kp : result)
-            {
-                ResultPoint[] points = kp.getResultPoints();
-                Imgproc.putText(mRgba, kp.getText(),new Point(points[1].getX(),points[1].getY()-50), Core.FONT_HERSHEY_COMPLEX, 1.0, new Scalar(0, 255, 0), 3, Imgproc.LINE_AA, false);
-                Imgproc.rectangle(mRgba,new Point(points[0].getX(),points[0].getY()),new Point(points[2].getX(),points[2].getY()), new Scalar(0,0,0,0),15);
-
-
-                if(kp.getText().contains("QR01")){
-                    Float x = points[0].getX();
-                    Float y = points[0].getY();
-                    listaProduto.add(new Qr(x,y,kp.getText()));
-
-                } else if (kp.getText().contains("QR02")){
-                    Float x = points[0].getX();
-                    Float y = points[0].getY();
-                    listaEndereco.add(new Qr(x,y,kp.getText()));
+            try {
+                Map<DecodeHintType, String> hints = new HashMap<>();
+                hints.put(DecodeHintType.CHARACTER_SET, "utf-8");
+                Result[]  result = new QRCodeMultiReader().decodeMultiple(bitmap, hints);
+                if(result.length > 0){
+                    flag = 1;
                 }
 
+
+                for(Result kp : result) {
+                    ResultPoint[] points = kp.getResultPoints();
+                    Imgproc.putText(mRgba, kp.getText(), new Point(points[1].getX(), points[1].getY() - 50), Core.FONT_HERSHEY_COMPLEX, 1.0, new Scalar(0, 255, 0), 3, Imgproc.LINE_AA, false);
+                    Imgproc.rectangle(mRgba, new Point(points[0].getX(), points[0].getY()), new Point(points[2].getX(), points[2].getY()), new Scalar(0, 0, 0, 0), 15);
+                    if (kp.getText().contains("QR01")) {
+                        Float x = points[0].getX();
+                        Float y = points[0].getY();
+                        listaProduto.add(new Qr(x, y, kp.getText()));
+                    } else if (kp.getText().contains("QR02")) {
+                        Float x = points[0].getX();
+                        Float y = points[0].getY();
+                        listaEndereco.add(new Qr(x, y, kp.getText()));
+                    }
+                }
+
+
                 for (int i = 0 ;  i < listaProduto.size(); i++) {
+
+                    Map<String, String> map = new HashMap<>();
+                    map.put("endereco", "");
+                    map.put("produto", listaProduto.get(i).getResultado());
+                    map.put("status", "");
+
                     Double xp = listaProduto.get(i).getX();
                     Double yp = listaProduto.get(i).getY();
-
-                    String produtoTemp = listaProduto.get(i).getResultado();
                     Double distanciaTemp = null;
                     String enderecoTemp = null;
-                    Integer indexTemp = null;
+                    String  produtoTemp = listaProduto.get(i).getResultado();
+                    int indexTemp = -1;
 
-                    for(int j = 0 ;  j < listaEndereco.size(); j++){
-                        if (j == 0){
+                    for(int j = 0 ;  j < listaEndereco.size(); j++) {
+                        if (j == 0) {
                             Double xe = listaEndereco.get(j).getX();
                             Double ye = listaEndereco.get(j).getY();
                             enderecoTemp = listaEndereco.get(j).getResultado();
-                            distanciaTemp = Math.pow(((xe - xp)*(xe - xp) + (ye - yp )*(ye - yp )),0.5);
+                            distanciaTemp = Math.pow(((xe - xp) * (xe - xp) + (ye - yp) * (ye - yp)), 0.5);
                             indexTemp = j;
-                            Log.d(TAG, distanciaTemp.toString());
 
-                        }else{
+                        } else {
                             Double xe = listaEndereco.get(j).getX();
                             Double ye = listaEndereco.get(j).getY();
                             double pow = Math.pow(((xe - xp) * (xe - xp) + (ye - yp) * (ye - yp)), 0.5);
-                            if(pow < distanciaTemp){
+                            if (pow < distanciaTemp) {
                                 enderecoTemp = listaEndereco.get(j).getResultado();
                                 distanciaTemp = pow;
                                 indexTemp = j;
                             }
                         }
                     }
-                    System.out.println(produtoTemp);
-                    System.out.println(enderecoTemp);
-                    System.out.println(distanciaTemp);
-                    System.out.println(indexTemp);
+
+                    if(enderecoTemp != null)
+                    {
+                        if(produtoTemp.contains( enderecoTemp.replaceFirst("QR02","")))
+                        {
+                            map.put("status","ok");
+                        }else{
+                            map.put("status","erro");
+
+                        }
+                        map.put("endereco", enderecoTemp);
+                        listaEndereco.remove(indexTemp);
+                        JSONObject jo = new JSONObject(map);
+                        listaFinal.add(jo);
+                    }
                 }
+                if(listaEndereco.size() > 0){
+                    for(int j = 0 ;  j < listaEndereco.size(); j++) {
+                        Map<String, String> map = new HashMap<>();
+                        map.put("endereco", listaEndereco.get(j).getResultado());
+                        map.put("produto", "");
+                        map.put("status", "Nao Leu");
+                        JSONObject jo = new JSONObject(map);
+                        listaFinal.add(jo);
+                    }
+
+                }
+                flag = 0;
+                Log.d(TAG, listaFinal.toString());
             }
-
-
-        }
-        catch (NotFoundException e) {
-            e.printStackTrace();
+            catch (NotFoundException e) {
+                e.printStackTrace();
+            }
         }
 
         return mRgba;
-
     }
 
 
